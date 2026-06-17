@@ -5,8 +5,8 @@ let cellSize; // 1マスのサイズ
 let checkButton; // 「CHECK」ボタン
 let resetButton; // 「RESET」ボタン
 
-// ★ 見つかったすべての共円リストを保存する配列に変更
-let foundCircles = []; 
+let foundCircles = []; // 見つかったすべての共円リスト
+let isGameOver = false; // ★ 感想戦中かどうかを管理するフラグ
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -28,14 +28,15 @@ function setup() {
   checkButton.mousePressed(checkKyouen);
 
   // 「RESET」ボタンの作成と設定
-  resetButton = createButton('リセット');
+  resetButton = createButton('次のゲームへ (リセット)');
   resetButton.position(180, 20);
-  resetButton.size(90, 40);
+  resetButton.size(180, 40); // 感想戦のあとに押しやすいよう、少し大きくしました
   resetButton.style('font-size', '16px');
   resetButton.style('background-color', '#2ed573');
   resetButton.style('color', 'white');
   resetButton.style('border', 'none');
   resetButton.style('border-radius', '5px');
+  resetButton.style('font-weight', 'bold');
   resetButton.mousePressed(resetGame);
 }
 
@@ -50,11 +51,10 @@ function draw() {
     line(cellSize, i * cellSize, (gridSize + 1) * cellSize, i * cellSize); // 横線
   }
 
-  // ★ 2. 見つかった共円を「すべて」描画するループ処理
+  // 2. 見つかった共円をすべて描画（感想戦中ずっと表示されます）
   for (let i = 0; i < foundCircles.length; i++) {
     let c = foundCircles[i];
-    // 赤いシースルーな円を描く
-    fill(255, 71, 87, 35); // 重なりが見やすいように透明度を35に少し下げました
+    fill(255, 71, 87, 35); // 赤いシースルーな円
     stroke(255, 71, 87); 
     strokeWeight(2.5);
     circle(c.cx * cellSize, c.cy * cellSize, c.r * 2 * cellSize);
@@ -70,14 +70,20 @@ function draw() {
   for (let i = 0; i < points.length; i++) {
     circle(points[i].x * cellSize, points[i].y * cellSize, cellSize * 0.4); 
   }
+  
+  // 4. ★ 感想戦モード中の見た目の演出
+  if (isGameOver) {
+    fill(0, 0, 0, 15); // 画面全体をほんのり暗くして「決着がついた感」を出します
+    rect(0, 0, width, height);
+  }
 }
 
 // 画面をクリック・タップしたときの処理（石を置く）
 function mousePressed() {
   if (mouseY < 80) return; // ボタン付近のタップは無視
 
-  // すでに共円が表示されている（ゲームが決着している）場合は追加で石を置けないようにする
-  if (foundCircles.length > 0) return;
+  // ★ すでにCHECKが終わっている（感想戦モード）場合は石を置けないようにする
+  if (isGameOver) return;
 
   let gridX = Math.round(mouseX / cellSize);
   let gridY = Math.round(mouseY / cellSize);
@@ -99,42 +105,39 @@ function mousePressed() {
 }
 
 // CHECKボタンが押された時の勝敗判定
-function kyouenAlert(count) {
-  alert("【見事！】\n盤面に " + count + " 個の共円を発見しました！\nCHECKボタンを押したプレイヤーの勝ちです！\n（OKを押すとリセットされます）");
-  resetGame();
-}
-
 function checkKyouen() {
-  if (foundCircles.length > 0) return;
+  // すでに感想戦中なら何もしない
+  if (isGameOver) return;
 
   // 盤面をスキャンしてすべての共円を見つけ出す
   scanGridForAllKyouen();
 
+  isGameOver = true; // ★ 感想戦モードに突入！
+
   if (foundCircles.length > 0) {
-    // 共円があった場合、その総数を数えて発表！
+    // 共円があった場合
     let totalCount = foundCircles.length;
-    setTimeout(() => kyouenAlert(totalCount), 200);
+    alert("【見事！】\n盤面に " + totalCount + " 個の共円を発見しました！\nCHECKボタンを押したプレイヤーの勝ちです！\n\n※このまま盤面を見て感想戦ができます。終わったら右上のリセットボタンを押してね。");
   } else {
     // 共円がなかった場合
-    alert("【残念！】\n盤面に共円はありませんでした……。\nCHECKボタンを押したプレイヤーの負けです！");
+    alert("【残念！】\n盤面に共円はありませんでした……。\nCHECKボタンを押したプレイヤーの負けです！\n\n※このまま盤面を見て感想戦ができます。終わったら右上のリセットボタンを押してね。");
   }
 }
 
-// ゲームをリセットする関数
+// ゲームをリセットして次の試合にいく関数
 function resetGame() {
   points = [];
-  foundCircles = []; // 配列を空っぽにする
+  foundCircles = []; 
+  isGameOver = false; // ★ 感想戦モードを解除
 }
 
 // ----------------------------------------------------
 // 数学的な判定ロジック（私を見つけてすべて形にする魔法）
 // ----------------------------------------------------
 
-// すでにリストにある円と重複していないかチェックする関数
 function isUniqueCircle(cx, cy, r) {
   for (let i = 0; i < foundCircles.length; i++) {
     let existing = foundCircles[i];
-    // 中心座標と半径がほぼ同じ(誤差0.001未満)ならすでに登録済みの円とみなす
     if (abs(existing.cx - cx) < 0.001 && abs(existing.cy - cy) < 0.001 && abs(existing.r - r) < 0.001) {
       return false; 
     }
@@ -154,16 +157,14 @@ function checkAndStoreConcyclic(p1, p2, p3, p4) {
   
   if (abs(r2 - d4_2) < 0.0001) {
     let r = sqrt(r2);
-    // 新しい円であれば配列に追加
     if (isUniqueCircle(ux, uy, r)) {
       foundCircles.push({ cx: ux, cy: uy, r: r });
     }
   }
 }
 
-// 盤面にあるすべての石の組み合わせを漏らさずチェックする関数
 function scanGridForAllKyouen() {
-  foundCircles = []; // 初期化
+  foundCircles = []; 
   let n = points.length;
   if (n < 4) return; 
   
